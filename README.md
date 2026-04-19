@@ -38,3 +38,13 @@ pytest
 ruff check .
 ruff format .
 ```
+
+Check formatting without writing files: `ruff format --check .`
+
+## Validate (like CI)
+
+```powershell
+ruff check .
+ruff format --check .
+pytest
+```
