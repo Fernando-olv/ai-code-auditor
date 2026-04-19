@@ -22,6 +22,8 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 Interactive API docs: `http://127.0.0.1:8000/docs`
 
+Health check: `GET http://127.0.0.1:8000/health`
+
 ## Test
 
 ```powershell
