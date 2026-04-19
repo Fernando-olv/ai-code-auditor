@@ -14,6 +14,8 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
+Optional: copy [`.env.example`](.env.example) to `.env` and adjust variables.
+
 ## Run
 
 ```powershell
