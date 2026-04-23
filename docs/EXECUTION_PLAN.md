@@ -327,6 +327,7 @@ Goal: generate GitHub-ready review output.
 Deliver:
 - PR summary renderer
 - GitHub comment/check payload generator
+- Post in the PR the review
 
 Definition of done:
 - summary includes score, key findings, strengths, risks, next actions

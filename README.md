@@ -48,3 +48,39 @@ ruff check .
 ruff format --check .
 pytest
 ```
+
+## Deploy to GCP Cloud Run (Docker)
+
+This repo includes a `Dockerfile` suitable for Cloud Run.
+
+### Build and run locally
+
+```powershell
+docker build -t ai-code-auditor .
+docker run -p 8080:8080 -e PORT=8080 -e GITHUB_WEBHOOK_SECRET="dev-secret" ai-code-auditor
+```
+
+Then verify:
+- `GET http://127.0.0.1:8080/health`
+- `POST http://127.0.0.1:8080/webhooks/github` (must be signed; see webhook docs/milestones)
+
+### Deploy to Cloud Run with Secret Manager
+
+Create the secret and add a value:
+
+```powershell
+gcloud secrets create github-webhook-secret --replication-policy="automatic"
+echo "your-webhook-secret" | gcloud secrets versions add github-webhook-secret --data-file=-
+```
+
+Deploy and map the secret to `GITHUB_WEBHOOK_SECRET`:
+
+```powershell
+gcloud run deploy ai-code-auditor ^
+  --source . ^
+  --region us-central1 ^
+  --allow-unauthenticated ^
+  --set-secrets GITHUB_WEBHOOK_SECRET=github-webhook-secret:latest
+```
+
+Cloud Run will route requests to the container on `$PORT` automatically.
