@@ -14,6 +14,15 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 0 definition of done met (local run, tests pass, health responds).
 
+## Milestone 1 — Webhook ingestion
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-22 | `feat(api): add GitHub webhook ingestion endpoint` | `POST /webhooks/github` in `app/api/webhook.py` with strict `X-Hub-Signature-256` validation, supports `ping` + `pull_request`, minimal logging; router wired in `app/factory.py` | Set `GITHUB_WEBHOOK_SECRET`, run `pytest`, and send a signed request (or use GitHub “Test delivery”) |
+| 2026-04-22 | `test: add webhook signature + endpoint fixtures` | Signature verification tests (`tests/unit/test_github_signature.py`), endpoint tests (`tests/unit/test_webhook_endpoint.py`), PR event parsing tests (`tests/unit/test_pull_request_parser.py`), fixtures under `tests/fixtures/github_webhooks/` | `pytest` |
+
+**Status:** Milestone 1 definition of done met (signature accepted/rejected; fixture payload parsed).
+
 ## Next
 
-- Milestone 1 — Webhook ingestion (`/webhooks/github`, signature validation, fixture tests).
+- Milestone 2 — PR context retrieval (GitHub client + diff retrieval + normalization).

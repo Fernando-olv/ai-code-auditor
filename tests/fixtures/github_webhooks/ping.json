@@ -1,0 +1,11 @@
+{
+  "zen": "Keep it logically awesome.",
+  "hook_id": 123456,
+  "hook": {
+    "type": "Repository",
+    "id": 123456,
+    "active": true,
+    "events": ["pull_request", "ping"]
+  }
+}
+

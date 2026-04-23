@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
+from app.api.webhook import router as webhook_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -25,4 +26,5 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health_router)
+    application.include_router(webhook_router)
     return application
