@@ -23,6 +23,18 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 1 definition of done met (signature accepted/rejected; fixture payload parsed).
 
+## Milestone 2 — PR context retrieval
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-27 | `feat(config): add GitHub API settings and runtime httpx` | `github_token`, `github_api_base_url` in [`app/core/config.py`](app/core/config.py); [`.env.example`](.env.example) + README env docs; `httpx` in main deps; `pythonpath = ["."]` in [`pyproject.toml`](pyproject.toml) so `pytest` resolves root [`main.py`](main.py) | `pytest` |
+| 2026-04-27 | `feat(github): add async REST client for PR and files` | [`app/services/github_client.py`](app/services/github_client.py): typed PR + file rows, pagination, optional `transport` for tests, `GitHubApiError` | `pytest tests/unit/test_github_client.py` |
+| 2026-04-27 | `feat(domain): add normalized PR context and file filters` | [`app/domain/pr_context.py`](app/domain/pr_context.py): `NormalizedPrContext`, `NormalizedChangedFile`, `FileFilterConfig`, `split_repository_full_name`, `filter_pull_files` | `pytest tests/unit/test_pr_context_filters.py` |
+| 2026-04-27 | `feat(services): add PR context builder` | [`app/services/pr_context_service.py`](app/services/pr_context_service.py): `github_client_from_settings`, `build_normalized_pr_context` (head SHA mismatch → `partial_context` + log) | `pytest tests/unit/test_pr_context_service.py` |
+| 2026-04-27 | `test: add GitHub API fixtures and unit tests` | [`tests/fixtures/github_api/`](tests/fixtures/github_api/), `test_github_client.py`, `test_pr_context_service.py`, `test_pr_context_filters.py` (`httpx.MockTransport`) | `pytest` |
+
+**Status:** Milestone 2 definition of done met (normalized context from repo + PR; filtering and caps tested; webhook path unchanged).
+
 ## Next
 
-- Milestone 2 — PR context retrieval (GitHub client + diff retrieval + normalization).
+- Milestone 3 — Deterministic rule engine (rules on normalized PR context).
