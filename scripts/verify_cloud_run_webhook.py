@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import shutil
 import subprocess
-import sys
 import urllib.error
 import urllib.request
 
@@ -42,27 +40,13 @@ def main() -> int:
         ],
         text=False,
     )
-    secret = raw.decode("utf-8")
-    print(
-        "secret_bytes",
-        len(raw),
-        "after_model_strip",
-        len(Settings(github_webhook_secret=secret).github_webhook_secret),
-    )
+    secret_model = Settings(github_webhook_secret=raw.decode("utf-8"))
+    normalized = secret_model.github_webhook_secret
 
-    sig = (
-        "sha256="
-        + hmac.new(
-            Settings(github_webhook_secret=secret).github_webhook_secret.encode("utf-8"),
-            body,
-            hashlib.sha256,
-        ).hexdigest()
-    )
-    assert verify_github_signature(
-        body,
-        sig,
-        Settings(github_webhook_secret=secret).github_webhook_secret,
-    )
+    print("secret_bytes", len(raw), "after_model_strip", len(normalized))
+
+    sig = "sha256=" + hmac.new(normalized.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    assert verify_github_signature(body, sig, normalized)
 
     req = urllib.request.Request(
         url,
