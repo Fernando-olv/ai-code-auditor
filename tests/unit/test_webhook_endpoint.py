@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.core.config import get_settings
 from main import app
 
 
@@ -20,7 +19,6 @@ def _signature_256(body: bytes, secret: str) -> str:
 def webhook_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     secret = "test_webhook_secret"
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", secret)
-    get_settings.cache_clear()
     return secret
 
 
