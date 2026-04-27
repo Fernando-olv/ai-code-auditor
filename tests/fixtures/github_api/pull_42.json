@@ -1,0 +1,17 @@
+{
+  "number": 42,
+  "title": "Add feature",
+  "html_url": "https://github.com/octo-org/octo-repo/pull/42",
+  "body": "Demo PR",
+  "head": {
+    "sha": "abc1234def5678",
+    "ref": "feature-branch"
+  },
+  "base": {
+    "sha": "base1112223334445",
+    "ref": "main"
+  },
+  "user": {
+    "login": "octocat"
+  }
+}

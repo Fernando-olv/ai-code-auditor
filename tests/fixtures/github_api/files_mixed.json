@@ -1,0 +1,28 @@
+[
+  {
+    "filename": "src/app.py",
+    "status": "modified",
+    "sha": "111",
+    "additions": 1,
+    "deletions": 0,
+    "changes": 1,
+    "patch": "@@ -0,0 +1 @@\n+print('hi')\n"
+  },
+  {
+    "filename": "package-lock.json",
+    "status": "modified",
+    "sha": "222",
+    "additions": 10,
+    "deletions": 0,
+    "changes": 10,
+    "patch": "{}\n"
+  },
+  {
+    "filename": "assets/logo.png",
+    "status": "added",
+    "sha": "333",
+    "additions": 0,
+    "deletions": 0,
+    "changes": 0
+  }
+]
