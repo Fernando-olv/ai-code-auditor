@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -15,7 +16,10 @@ from app.services.pr_context_service import (
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "github_api"
 
 
-def _handler_for_pull_and_files(pull: object, files: object) -> object:
+def _handler_for_pull_and_files(
+    pull: object,
+    files: object,
+) -> Callable[[httpx.Request], httpx.Response]:
     def handler(request: httpx.Request) -> httpx.Response:
         path = str(request.url.path)
         if path.endswith("/pulls/42") and not path.endswith("/files"):
