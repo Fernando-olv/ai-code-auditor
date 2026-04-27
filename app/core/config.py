@@ -16,13 +16,20 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     github_webhook_secret: str = ""
+    github_token: str = ""
+    github_api_base_url: str = "https://api.github.com"
 
-    @field_validator("github_webhook_secret")
+    @field_validator("github_webhook_secret", "github_token")
     @classmethod
-    def strip_github_webhook_secret(cls, value: str) -> str:
+    def strip_secrets(cls, value: str) -> str:
         """Avoid newline/CRLF mismatches when secrets are piped from shells."""
 
         return value.strip()
+
+    @field_validator("github_api_base_url")
+    @classmethod
+    def strip_trailing_slash_github_api_base_url(cls, value: str) -> str:
+        return value.rstrip("/")
 
 
 def get_settings() -> Settings:

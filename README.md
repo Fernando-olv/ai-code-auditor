@@ -16,6 +16,12 @@ pip install -e ".[dev]"
 
 Optional: copy [`.env.example`](.env.example) to `.env` and adjust variables.
 
+Environment variables:
+
+- `GITHUB_WEBHOOK_SECRET` — validates incoming GitHub webhooks (`X-Hub-Signature-256`).
+- `GITHUB_TOKEN` — bearer token for GitHub REST API (PR context retrieval and later milestones). Not used for webhook signatures.
+- `GITHUB_API_BASE_URL` — optional; defaults to `https://api.github.com` (useful for GitHub Enterprise).
+
 ## Run
 
 ```powershell
