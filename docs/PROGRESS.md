@@ -35,6 +35,18 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 2 definition of done met (normalized context from repo + PR; filtering and caps tested; webhook path unchanged).
 
+## Milestone 3 — Deterministic rule engine
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-28 | `feat(domain): add findings schema and rule protocol` | [`app/domain/findings.py`](app/domain/findings.py) (`Severity`, `Finding`, `RuleEngineResult`, `RuleEngineConfig`, `compute_finding_id`), [`app/domain/rule_protocol.py`](app/domain/rule_protocol.py) | `pytest tests/unit/test_findings.py` |
+| 2026-04-28 | `feat(domain): add patch line iterator for unified diffs` | [`app/domain/patch_utils.py`](app/domain/patch_utils.py) (`iter_added_lines`) | `pytest tests/unit/test_patch_utils.py` |
+| 2026-04-28 | `feat(services): add deterministic rule engine` | [`app/services/rule_engine.py`](app/services/rule_engine.py) (`RuleEngine`, `default_rule_engine`, pack `v0_1_0`) | `pytest tests/unit/test_rule_engine.py` |
+| 2026-04-28 | `feat(rules): add MVP deterministic rules` | [`app/rules/size_rules.py`](app/rules/size_rules.py), [`app/rules/text_scan_rules.py`](app/rules/text_scan_rules.py), [`app/rules/coverage_heuristic_rules.py`](app/rules/coverage_heuristic_rules.py), [`app/rules/registry.py`](app/rules/registry.py) | `pytest tests/unit/test_deterministic_rules.py` |
+| 2026-04-28 | `test: add unit tests for findings, patches, engine, rules` | `tests/unit/test_findings.py`, `test_patch_utils.py`, `test_rule_engine.py`, `test_deterministic_rules.py` | `pytest` |
+
+**Status:** Milestone 3 definition of done met (rules run on `NormalizedPrContext`; stable `Finding` schema; rule tests; webhook unchanged).
+
 ## Next
 
-- Milestone 3 — Deterministic rule engine (rules on normalized PR context).
+- Milestone 4 — LLM reviewer (structured pass + validation).
