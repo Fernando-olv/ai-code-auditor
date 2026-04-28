@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from app.services.github_client import GitHubApiError, GitHubRestClient
+from app.services.github_client import GitHubApiError, GitHubIssueComment, GitHubRestClient
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "github_api"
 
@@ -115,6 +115,53 @@ async def test_list_pull_request_files_paginates() -> None:
             per_page=2,
         )
         assert [f.filename for f in all_files] == ["a.py", "b.py", "c.py"]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_list_issue_comments_paginates() -> None:
+    page1 = [{"id": 1, "body": "a"}, {"id": 2, "body": "b"}]
+    page2 = [{"id": 3, "body": "c"}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if not str(request.url.path).endswith("/issues/42/comments"):
+            return httpx.Response(404)
+        per = request.url.params.get("per_page")
+        page = request.url.params.get("page", "1")
+        if per == "2" and page == "1":
+            return httpx.Response(200, json=page1)
+        if per == "2" and page == "2":
+            return httpx.Response(200, json=page2)
+        if per == "2" and page == "3":
+            return httpx.Response(200, json=[])
+        return httpx.Response(400)
+
+    transport = httpx.MockTransport(handler)
+    client = GitHubRestClient("https://api.github.com", "t", transport=transport)
+    try:
+        got = await client.list_issue_comments("o", "r", 42, per_page=2)
+        assert [c.id for c in got] == [1, 2, 3]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_create_issue_comment_returns_model() -> None:
+    created = {"id": 99, "body": "hello"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and str(request.url.path).endswith("/issues/5/comments"):
+            return httpx.Response(201, json=created)
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(handler)
+    client = GitHubRestClient("https://api.github.com", "t", transport=transport)
+    try:
+        got = await client.create_issue_comment("o", "r", 5, "hello")
+        assert isinstance(got, GitHubIssueComment)
+        assert got.id == 99
+        assert got.body == "hello"
     finally:
         await client.aclose()
 

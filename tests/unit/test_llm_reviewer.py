@@ -152,10 +152,54 @@ def test_concat_findings_order() -> None:
 
 @pytest.mark.asyncio
 async def test_run_llm_reviewer_from_settings_skips_without_key() -> None:
-    settings = Settings.model_construct(openai_api_key="")
+    settings = Settings.model_construct(llm_provider="openai", openai_api_key="")
     result = await run_llm_reviewer_from_settings(_minimal_ctx(), settings)
     assert result.status == "skipped"
     assert "openai_api_key" in "".join(result.notes).lower()
+
+
+@pytest.mark.asyncio
+async def test_run_llm_reviewer_from_settings_gemini_skips_without_key() -> None:
+    settings = Settings.model_construct(llm_provider="gemini", gemini_api_key="")
+    result = await run_llm_reviewer_from_settings(_minimal_ctx(), settings)
+    assert result.status == "skipped"
+    assert "gemini_api_key" in "".join(result.notes).lower()
+
+
+@pytest.mark.asyncio
+async def test_run_llm_reviewer_from_settings_gemini_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import llm_reviewer as lr
+
+    fixture = (
+        Path(__file__).resolve().parents[1] / "fixtures" / "llm_outputs" / "valid_reviewer.json"
+    )
+    inner = fixture.read_text(encoding="utf-8")
+
+    class FakeGemini:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            _ = args, kwargs
+
+        async def complete_json(self, *, system: str, user: str) -> str:
+            _ = system, user
+            return inner
+
+        async def aclose(self) -> None:
+            return None
+
+    monkeypatch.setattr(lr, "GeminiGenerativeClient", FakeGemini)
+
+    settings = Settings.model_construct(
+        llm_provider="gemini",
+        gemini_api_key="x",
+        gemini_model="gemini-2.0-flash",
+        llm_max_chars_per_file=24_000,
+        llm_max_user_payload_chars=120_000,
+    )
+    result = await run_llm_reviewer_from_settings(_minimal_ctx(), settings)
+    assert result.status == "ok"
+    assert result.findings
 
 
 @pytest.mark.asyncio

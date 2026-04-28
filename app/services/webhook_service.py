@@ -8,6 +8,14 @@ from typing import Any
 
 from app.domain.webhooks import PullRequestEvent
 
+PR_ACTIONS_RUN_ANALYSIS = frozenset({"opened", "synchronize", "reopened"})
+
+
+def pull_request_action_triggers_analysis(action: str) -> bool:
+    """Return True when the webhook should enqueue a full PR analysis + feedback."""
+
+    return action in PR_ACTIONS_RUN_ANALYSIS
+
 
 def verify_github_signature(body: bytes, signature_256: str, secret: str) -> bool:
     """Verify GitHub `X-Hub-Signature-256` against the raw request body.

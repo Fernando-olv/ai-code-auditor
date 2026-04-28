@@ -57,6 +57,17 @@ class GitHubPullResponse(BaseModel):
         )
 
 
+class GitHubIssueComment(BaseModel):
+    """Subset of `POST/GET .../issues/{n}/comments` used for PR feedback."""
+
+    id: int
+    body: str | None = None
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> GitHubIssueComment:
+        return cls(id=int(data["id"]), body=data.get("body"))
+
+
 class GitHubPullFile(BaseModel):
     """One row from `GET .../pulls/{pull_number}/files`."""
 
@@ -205,3 +216,83 @@ class GitHubRestClient:
             },
         )
         return all_files
+
+    async def list_issue_comments(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+        *,
+        per_page: int = 100,
+        max_pages: int = 10,
+    ) -> list[GitHubIssueComment]:
+        """List issue (PR) comments, newest pages first is not guaranteed; caller scans bodies."""
+
+        if per_page > 100:
+            per_page = 100
+
+        all_comments: list[GitHubIssueComment] = []
+        page = 1
+        path = f"/repos/{owner}/{repo}/issues/{issue_number}/comments"
+
+        while page <= max_pages:
+            response = await self._client.get(path, params={"per_page": per_page, "page": page})
+            if response.status_code == 404:
+                raise GitHubApiError(
+                    f"Issue comments not found: {owner}/{repo}#{issue_number}",
+                    status_code=404,
+                )
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise GitHubApiError(
+                    f"GitHub API error for {path}: {exc.response.status_code}",
+                    status_code=exc.response.status_code,
+                ) from exc
+
+            batch = response.json()
+            if not isinstance(batch, list):
+                raise GitHubApiError("GitHub API returned non-array JSON for issue comments")
+
+            if len(batch) == 0:
+                break
+
+            for row in batch:
+                if not isinstance(row, dict):
+                    raise GitHubApiError("GitHub API returned non-object comment row")
+                all_comments.append(GitHubIssueComment.from_api(row))
+
+            if len(batch) < per_page:
+                break
+            page += 1
+
+        return all_comments
+
+    async def create_issue_comment(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+        body: str,
+    ) -> GitHubIssueComment:
+        """Create a new issue comment (works for pull requests using the PR number)."""
+
+        path = f"/repos/{owner}/{repo}/issues/{issue_number}/comments"
+        response = await self._client.post(path, json={"body": body})
+        if response.status_code == 404:
+            raise GitHubApiError(
+                f"Issue not found for comment: {owner}/{repo}#{issue_number}",
+                status_code=404,
+            )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise GitHubApiError(
+                f"GitHub API error for {path}: {exc.response.status_code}",
+                status_code=exc.response.status_code,
+            ) from exc
+
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise GitHubApiError("GitHub API returned non-object JSON for created comment")
+        return GitHubIssueComment.from_api(payload)

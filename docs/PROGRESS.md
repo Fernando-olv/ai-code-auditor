@@ -84,6 +84,17 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 6 definition of done met (repository + mapper + orchestration + unit tests + optional emulator round-trip + GCP smoke script and deploy docs).
 
+## Milestone 7 — PR feedback (GitHub comments)
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-28 | `feat(services): PR feedback markdown` | [`app/services/feedback_service.py`](app/services/feedback_service.py): score/findings/LLM/strengths/risks/next actions, head-SHA marker, body length cap | `pytest tests/unit/test_feedback_service.py` |
+| 2026-04-28 | `feat(github): issue comments API` | [`app/services/github_client.py`](app/services/github_client.py): `list_issue_comments`, `create_issue_comment`, `GitHubIssueComment` | `pytest tests/unit/test_github_client.py` |
+| 2026-04-28 | `feat(services): PR analysis runner` | [`app/services/pr_analysis_runner.py`](app/services/pr_analysis_runner.py): context → rules → LLM → score → optional Firestore → GitHub comment; duplicate skip | `pytest tests/unit/test_pr_analysis_runner.py` |
+| 2026-04-28 | `feat(api): webhook background analysis` | [`app/api/webhook.py`](app/api/webhook.py) + [`app/services/webhook_service.py`](app/services/webhook_service.py): `BackgroundTasks`, action filter `opened`/`synchronize`/`reopened`, `queued` in JSON | `pytest tests/unit/test_webhook_endpoint.py` |
+
+**Status:** Milestone 7 definition of done met (markdown review on PR via issue comment; async webhook path; Firestore when configured; unit tests).
+
 ## Next
 
-- Milestone 7 — Wire persistence into the analyzer / webhook path (background or queued), idempotency, and hardening.
+- Milestone 8 — Demo hardening (fixtures, demo script, architecture notes, limitations).

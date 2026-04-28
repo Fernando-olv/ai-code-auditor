@@ -3,6 +3,7 @@ import hmac
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -52,8 +53,12 @@ async def test_webhook_ping_accepts_valid_signature(
 
 @pytest.mark.asyncio
 async def test_webhook_pull_request_accepts_valid_signature(
-    client: AsyncClient, webhook_secret: str
+    client: AsyncClient, webhook_secret: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        "app.api.webhook.run_pr_analysis_for_pull_request",
+        AsyncMock(),
+    )
     body = _fixture_bytes("pull_request_opened.json")
     headers = {
         "X-GitHub-Event": "pull_request",
@@ -63,7 +68,23 @@ async def test_webhook_pull_request_accepts_valid_signature(
 
     response = await client.post("/webhooks/github", content=body, headers=headers)
     assert response.status_code == 202
-    assert response.json() == {"accepted": True}
+    assert response.json() == {"accepted": True, "queued": True}
+
+
+@pytest.mark.asyncio
+async def test_webhook_pull_request_labeled_not_queued(
+    client: AsyncClient, webhook_secret: str
+) -> None:
+    body = _fixture_bytes("pull_request_labeled.json")
+    headers = {
+        "X-GitHub-Event": "pull_request",
+        "X-GitHub-Delivery": "delivery-labeled",
+        "X-Hub-Signature-256": _signature_256(body, webhook_secret),
+    }
+
+    response = await client.post("/webhooks/github", content=body, headers=headers)
+    assert response.status_code == 202
+    assert response.json() == {"accepted": True, "queued": False}
 
 
 @pytest.mark.asyncio

@@ -5,11 +5,16 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.services.webhook_service import parse_pull_request_event, verify_github_signature
+from app.services.pr_analysis_runner import run_pr_analysis_for_pull_request
+from app.services.webhook_service import (
+    parse_pull_request_event,
+    pull_request_action_triggers_analysis,
+    verify_github_signature,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +22,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 @router.post("/github")
-async def github_webhook(request: Request) -> dict[str, object]:
+async def github_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, object]:
     settings = get_settings()
     if not settings.github_webhook_secret:
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
@@ -48,6 +53,7 @@ async def github_webhook(request: Request) -> dict[str, object]:
         raise HTTPException(status_code=400, detail="Invalid JSON") from exc
 
     pr_event = parse_pull_request_event(payload)
+    queued = pull_request_action_triggers_analysis(pr_event.action)
     logger.info(
         "github_webhook_pull_request",
         extra={
@@ -57,7 +63,15 @@ async def github_webhook(request: Request) -> dict[str, object]:
             "action": pr_event.action,
             "pr_number": pr_event.pr_number,
             "head_sha": pr_event.head_sha,
+            "queued": queued,
         },
     )
 
-    return JSONResponse(status_code=202, content={"accepted": True})
+    if queued:
+        background_tasks.add_task(
+            run_pr_analysis_for_pull_request,
+            pr_event,
+            delivery=delivery,
+        )
+
+    return JSONResponse(status_code=202, content={"accepted": True, "queued": queued})
