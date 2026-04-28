@@ -60,6 +60,16 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 4 definition of done met (prompt + strict schema + adapter + safe fallback; `source=llm` findings; coexist via `concat_findings`; webhook unchanged).
 
+## Milestone 5 — Deterministic PR scoring
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-28 | `feat(domain): add deterministic scoring models and engine` | [`app/domain/scoring.py`](app/domain/scoring.py): `ScoreDimension`, `Subscores`, `ScoringConfig`, `PrScoreResult`, `compute_pr_score` (routing, penalties, weights, partial/truncation degradation, order-invariant) | `pytest tests/unit/test_scoring.py` |
+| 2026-04-28 | `feat(services): add scoring service wrapper` | [`app/services/scoring_service.py`](app/services/scoring_service.py): `default_scoring_config`, `score_pr` | `pytest tests/unit/test_scoring.py` |
+| 2026-04-28 | `test: add scoring unit tests` | [`tests/unit/test_scoring.py`](tests/unit/test_scoring.py) | `pytest` |
+
+**Status:** Milestone 5 definition of done met (deterministic `final_score` 0–100, five subscores, explanations; tests cover baselines, routing, partial context, order invariance).
+
 ## Next
 
-- Milestone 5 — Scoring (deterministic score from findings).
+- Milestone 6 — Persistence (Firestore `analysis_runs` + findings).
