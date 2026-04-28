@@ -47,6 +47,19 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 3 definition of done met (rules run on `NormalizedPrContext`; stable `Finding` schema; rule tests; webhook unchanged).
 
+## Milestone 4 — LLM reviewer
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-28 | `feat(ai): add review prompt and memory stubs` | [`ai/prompts/review_prompt.md`](ai/prompts/review_prompt.md), [`ai/memory/patterns.md`](ai/memory/patterns.md), [`ai/memory/anti_patterns.md`](ai/memory/anti_patterns.md), [`app/services/prompt_loader.py`](app/services/prompt_loader.py) | `pytest` (imports resolve `ai/` from repo root) |
+| 2026-04-28 | `feat(schemas): add LLM reviewer JSON models` | [`app/schemas/llm_review.py`](app/schemas/llm_review.py) | `pytest tests/unit/test_llm_schema.py` |
+| 2026-04-28 | `feat(config): add OpenAI-compatible LLM settings` | [`app/core/config.py`](app/core/config.py), [`.env.example`](.env.example), [README](README.md) | Configure keys; `get_settings()` |
+| 2026-04-28 | `feat(services): add LLM client and reviewer` | [`app/services/llm_client.py`](app/services/llm_client.py), [`app/services/llm_reviewer.py`](app/services/llm_reviewer.py), [`app/services/analysis_merge.py`](app/services/analysis_merge.py) | `pytest tests/unit/test_llm_reviewer.py` |
+| 2026-04-28 | `chore(docker): bundle ai prompts in image` | [`Dockerfile`](Dockerfile) `COPY ai ./ai` | `docker build` |
+| 2026-04-28 | `test: add LLM schema and reviewer unit tests` | `tests/unit/test_llm_schema.py`, `test_llm_reviewer.py`, [`tests/fixtures/llm_outputs/valid_reviewer.json`](tests/fixtures/llm_outputs/valid_reviewer.json) | `pytest` |
+
+**Status:** Milestone 4 definition of done met (prompt + strict schema + adapter + safe fallback; `source=llm` findings; coexist via `concat_findings`; webhook unchanged).
+
 ## Next
 
-- Milestone 4 — LLM reviewer (structured pass + validation).
+- Milestone 5 — Scoring (deterministic score from findings).

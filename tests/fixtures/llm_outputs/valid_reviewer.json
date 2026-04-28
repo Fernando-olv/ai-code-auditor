@@ -1,0 +1,17 @@
+{
+  "summary": "Small change; one maintainability note.",
+  "findings": [
+    {
+      "rule_id": "llm.reviewer.maintainability",
+      "severity": "low",
+      "category": "maintainability",
+      "file_path": "app/main.py",
+      "line_start": 1,
+      "line_end": 1,
+      "title": "Naming clarity",
+      "description": "Consider a clearer name for the helper based on the diff.",
+      "suggestion": "Rename if it improves readability for new readers.",
+      "confidence": 0.55
+    }
+  ]
+}

@@ -9,6 +9,7 @@ RUN useradd --create-home --uid 10001 appuser
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY ai ./ai
 COPY main.py ./
 COPY README.md ./
 

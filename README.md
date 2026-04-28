@@ -21,6 +21,10 @@ Environment variables:
 - `GITHUB_WEBHOOK_SECRET` — validates incoming GitHub webhooks (`X-Hub-Signature-256`).
 - `GITHUB_TOKEN` — bearer token for GitHub REST API (PR context retrieval and later milestones). Not used for webhook signatures.
 - `GITHUB_API_BASE_URL` — optional; defaults to `https://api.github.com` (useful for GitHub Enterprise).
+- `OPENAI_API_KEY` — OpenAI-compatible API key for the LLM reviewer (Milestone 4). If unset, LLM review is skipped.
+- `OPENAI_BASE_URL` — optional; defaults to `https://api.openai.com/v1`.
+- `LLM_MODEL` — optional; defaults to `gpt-4o-mini` in settings.
+- `AI_REPO_ROOT` or `AI_PROMPTS_DIR` — optional path to the repository root that contains the [`ai/`](ai/) prompts folder when not running from a normal checkout.
 
 ## Run
 
