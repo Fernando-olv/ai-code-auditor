@@ -70,6 +70,20 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 5 definition of done met (deterministic `final_score` 0–100, five subscores, explanations; tests cover baselines, routing, partial context, order invariance).
 
+## Milestone 6 — Firestore persistence + GCP verification
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-27 | `feat(deps): add google-cloud-firestore` | [`pyproject.toml`](pyproject.toml): `google-cloud-firestore`; [`app/core/config.py`](app/core/config.py): `google_cloud_project`, `firestore_database_id`; [`.env.example`](.env.example) + [README](README.md) emulator / Cloud Run / IAM | `pip install -e ".[dev]"` |
+| 2026-04-27 | `feat(infra): Firestore client factory` | [`app/infra/firestore_client.py`](app/infra/firestore_client.py): emulator host + project + optional database id | Import `create_firestore_client` |
+| 2026-04-27 | `feat(domain): analysis run Firestore mappers` | [`app/domain/analysis_run.py`](app/domain/analysis_run.py): `finding_to_firestore_dict`, `build_analysis_run_document`, partial/summary helpers | `pytest tests/unit/test_analysis_run.py` |
+| 2026-04-27 | `feat(repositories): AnalysisRepository` | [`app/repositories/analysis_repository.py`](app/repositories/analysis_repository.py): batch persist, get run, list findings; `asyncio.to_thread` | `pytest tests/unit/test_analysis_repository.py` |
+| 2026-04-27 | `feat(services): analysis persistence orchestration` | [`app/services/analysis_persistence.py`](app/services/analysis_persistence.py): `persist_analysis_run` | `pytest tests/unit/test_analysis_persistence.py` |
+| 2026-04-27 | `test: Firestore integration marker` | [`tests/unit/test_firestore_integration.py`](tests/unit/test_firestore_integration.py) (`@pytest.mark.integration`), [`pyproject.toml`](pyproject.toml) marker registration | `FIRESTORE_EMULATOR_HOST=... pytest -m integration` |
+| 2026-04-27 | `chore(scripts): GCP Firestore smoke` | [`scripts/verify_gcp_firestore.py`](scripts/verify_gcp_firestore.py) | `GOOGLE_CLOUD_PROJECT=... python scripts/verify_gcp_firestore.py` |
+
+**Status:** Milestone 6 definition of done met (repository + mapper + orchestration + unit tests + optional emulator round-trip + GCP smoke script and deploy docs).
+
 ## Next
 
-- Milestone 6 — Persistence (Firestore `analysis_runs` + findings).
+- Milestone 7 — Wire persistence into the analyzer / webhook path (background or queued), idempotency, and hardening.

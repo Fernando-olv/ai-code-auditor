@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     llm_max_user_payload_chars: int = 120_000
     llm_json_response_format: bool = True
 
+    google_cloud_project: str = ""
+    firestore_database_id: str = ""
+
     @field_validator("github_webhook_secret", "github_token", "openai_api_key")
     @classmethod
     def strip_secrets(cls, value: str) -> str:
@@ -38,6 +41,11 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash_url(cls, value: str) -> str:
         return value.rstrip("/")
+
+    @field_validator("google_cloud_project", "firestore_database_id")
+    @classmethod
+    def strip_whitespace(cls, value: str) -> str:
+        return value.strip()
 
 
 def get_settings() -> Settings:
