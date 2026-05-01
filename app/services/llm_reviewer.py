@@ -11,12 +11,13 @@ from pydantic import BaseModel, Field
 from app.core.config import Settings
 from app.domain.findings import Finding
 from app.domain.pr_context import NormalizedPrContext
+from app.ports.llm_client import LlmClient
 from app.schemas.llm_review import (
     LlmReviewerRawFinding,
     LlmReviewerResponse,
     parse_llm_reviewer_response,
 )
-from app.services.llm_client import GeminiGenerativeClient, LlmClient, OpenAiCompatibleClient
+from app.services.llm_factory import build_llm_client
 from app.services.prompt_loader import load_memory_snippets, load_review_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -177,47 +178,22 @@ async def run_llm_reviewer_from_settings(
     ctx: NormalizedPrContext,
     settings: Settings,
 ) -> LlmReviewResult:
-    """Convenience: skip when no API key for the selected provider; then run review."""
+    """Convenience: pick adapter via factory, skip when no API key, then run review."""
 
-    http_llm: OpenAiCompatibleClient | GeminiGenerativeClient
-    if settings.llm_provider == "gemini":
-        if not settings.gemini_api_key:
-            return LlmReviewResult(
-                status="skipped",
-                findings=[],
-                notes=[
-                    "gemini_api_key not configured (set GEMINI_API_KEY for LLM_PROVIDER=gemini)"
-                ],
-            )
-        http_llm = GeminiGenerativeClient(
-            settings.gemini_api_key,
-            model=settings.gemini_model,
-            max_output_tokens=settings.llm_max_output_tokens,
-            use_json_mime_type=settings.llm_json_response_format,
-        )
-    else:
-        if not settings.openai_api_key:
-            return LlmReviewResult(
-                status="skipped",
-                findings=[],
-                notes=[
-                    "openai_api_key not configured (set OPENAI_API_KEY for LLM_PROVIDER=openai)"
-                ],
-            )
-        http_llm = OpenAiCompatibleClient(
-            settings.openai_api_key,
-            base_url=settings.openai_base_url,
-            model=settings.llm_model,
-            max_output_tokens=settings.llm_max_output_tokens,
-            use_json_response_format=settings.llm_json_response_format,
+    client, skip_reason = build_llm_client(settings)
+    if client is None:
+        return LlmReviewResult(
+            status="skipped",
+            findings=[],
+            notes=[skip_reason or "llm_client_not_configured"],
         )
 
     try:
         return await run_llm_reviewer(
             ctx,
-            http_llm,
+            client,
             max_chars_per_file=settings.llm_max_chars_per_file,
             max_user_payload_chars=settings.llm_max_user_payload_chars,
         )
     finally:
-        await http_llm.aclose()
+        await client.aclose()

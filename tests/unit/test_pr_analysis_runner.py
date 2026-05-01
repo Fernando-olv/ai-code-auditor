@@ -7,27 +7,28 @@ from app.domain.findings import RuleEngineResult
 from app.domain.pr_context import NormalizedPrContext
 from app.domain.webhooks import PullRequestEvent
 from app.services import pr_analysis_runner as runner
+from app.services import store_factory
 from app.services.feedback_service import append_head_sha_marker
 from app.services.github_client import GitHubIssueComment
 from app.services.llm_reviewer import LlmReviewResult
 
 
-def test_firestore_persistence_enabled_project(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_persistence_enabled_project(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FIRESTORE_EMULATOR_HOST", raising=False)
     s = Settings(google_cloud_project="my-proj")
-    assert runner.firestore_persistence_enabled(s) is True
+    assert store_factory.persistence_enabled(s) is True
 
 
-def test_firestore_persistence_enabled_emulator(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_persistence_enabled_emulator(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080")
     s = Settings(google_cloud_project="")
-    assert runner.firestore_persistence_enabled(s) is True
+    assert store_factory.persistence_enabled(s) is True
 
 
-def test_firestore_persistence_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_persistence_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FIRESTORE_EMULATOR_HOST", raising=False)
     s = Settings(google_cloud_project="")
-    assert runner.firestore_persistence_enabled(s) is False
+    assert store_factory.persistence_enabled(s) is False
 
 
 @pytest.mark.asyncio
@@ -78,7 +79,7 @@ async def test_run_pr_analysis_posts_comment(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(runner, "build_normalized_pr_context", fake_build)
     monkeypatch.setattr(runner, "default_rule_engine", lambda: FakeEngine())
     monkeypatch.setattr(runner, "run_llm_reviewer_from_settings", fake_llm)
-    monkeypatch.setattr(runner, "firestore_persistence_enabled", lambda _s: False)
+    monkeypatch.setattr(runner, "build_analysis_store", lambda _s: None)
     monkeypatch.setattr(
         runner,
         "get_settings",
@@ -138,7 +139,7 @@ async def test_run_pr_analysis_skips_duplicate(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(runner, "build_normalized_pr_context", fake_build)
     monkeypatch.setattr(runner, "default_rule_engine", lambda: FakeEngine())
     monkeypatch.setattr(runner, "run_llm_reviewer_from_settings", fake_llm)
-    monkeypatch.setattr(runner, "firestore_persistence_enabled", lambda _s: False)
+    monkeypatch.setattr(runner, "build_analysis_store", lambda _s: None)
     monkeypatch.setattr(
         runner,
         "get_settings",

@@ -170,7 +170,7 @@ async def test_run_llm_reviewer_from_settings_gemini_skips_without_key() -> None
 async def test_run_llm_reviewer_from_settings_gemini_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.services import llm_reviewer as lr
+    from app.services import llm_factory
 
     fixture = (
         Path(__file__).resolve().parents[1] / "fixtures" / "llm_outputs" / "valid_reviewer.json"
@@ -188,7 +188,7 @@ async def test_run_llm_reviewer_from_settings_gemini_path(
         async def aclose(self) -> None:
             return None
 
-    monkeypatch.setattr(lr, "GeminiGenerativeClient", FakeGemini)
+    monkeypatch.setattr(llm_factory, "GeminiGenerativeClient", FakeGemini)
 
     settings = Settings.model_construct(
         llm_provider="gemini",

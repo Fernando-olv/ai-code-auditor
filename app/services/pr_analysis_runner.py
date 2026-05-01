@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 from time import perf_counter
 
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings
 from app.domain.pr_context import split_repository_full_name
 from app.domain.webhooks import PullRequestEvent
-from app.repositories.analysis_repository import AnalysisRepository
 from app.services.analysis_merge import concat_findings
 from app.services.analysis_persistence import persist_analysis_run
 from app.services.feedback_service import (
@@ -22,16 +20,9 @@ from app.services.llm_reviewer import LLM_RULE_PACK_VERSION_DEFAULT, run_llm_rev
 from app.services.pr_context_service import build_normalized_pr_context, github_client_from_settings
 from app.services.rule_engine import default_rule_engine
 from app.services.scoring_service import score_pr
+from app.services.store_factory import build_analysis_store
 
 logger = logging.getLogger(__name__)
-
-
-def firestore_persistence_enabled(settings: Settings) -> bool:
-    """True when Firestore client can be constructed for this process (project or emulator)."""
-
-    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-        return True
-    return bool(settings.google_cloud_project.strip())
 
 
 async def _comment_exists_for_head_sha(
@@ -74,17 +65,28 @@ async def run_pr_analysis_for_pull_request(
         ctx = await build_normalized_pr_context(gh, pr_event)
         rule_result = default_rule_engine().run(ctx)
         llm = await run_llm_reviewer_from_settings(ctx, settings)
+        llm_log_extra = {
+            **base_log,
+            "llm_status": llm.status,
+            "llm_findings": len(llm.findings),
+            "llm_notes": llm.notes[:5],
+            "llm_provider": settings.llm_provider,
+        }
+        if llm.status == "ok":
+            logger.info("pr_analysis_llm_outcome", extra=llm_log_extra)
+        else:
+            logger.warning("pr_analysis_llm_outcome", extra=llm_log_extra)
         merged = concat_findings(rule_result.findings, llm.findings)
         score = score_pr(merged, ctx)
         latency_ms = int((perf_counter() - t0) * 1000)
 
         llm_pack_version = LLM_RULE_PACK_VERSION_DEFAULT if llm.status == "ok" else None
 
-        if firestore_persistence_enabled(settings):
+        store = build_analysis_store(settings)
+        if store is not None:
             try:
-                repo = AnalysisRepository.from_settings(settings)
                 await persist_analysis_run(
-                    repo,
+                    store,
                     ctx=ctx,
                     findings=merged,
                     score=score,
@@ -95,9 +97,9 @@ async def run_pr_analysis_for_pull_request(
                     error_message=None,
                 )
             except Exception:
-                logger.exception("pr_analysis_firestore_persist_failed", extra=base_log)
+                logger.exception("pr_analysis_persist_failed", extra=base_log)
         else:
-            logger.info("pr_analysis_firestore_skipped_not_configured", extra=base_log)
+            logger.info("pr_analysis_persistence_skipped_not_configured", extra=base_log)
 
         markdown = render_pr_feedback_markdown(
             ctx=ctx,

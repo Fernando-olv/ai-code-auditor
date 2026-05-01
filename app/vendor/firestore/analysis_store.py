@@ -1,4 +1,4 @@
-"""Firestore persistence for `analysis_runs` and nested `findings`."""
+"""Firestore-backed :class:`AnalysisStore` implementation."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from google.cloud import firestore
 
 from app.core.config import Settings
 from app.domain.analysis_run import ANALYSIS_RUNS_COLLECTION, FINDINGS_SUBCOLLECTION
-from app.infra.firestore_client import create_firestore_client
+from app.vendor.firestore.client_factory import create_firestore_client
 
 
 def _finding_doc_id(payload: dict[str, Any]) -> str:
@@ -20,14 +20,14 @@ def _finding_doc_id(payload: dict[str, Any]) -> str:
     return uuid.uuid4().hex
 
 
-class AnalysisRepository:
+class FirestoreAnalysisStore:
     """Thin Firestore adapter; sync client calls run in ``asyncio.to_thread``."""
 
     def __init__(self, client: firestore.Client) -> None:
         self._client = client
 
     @classmethod
-    def from_settings(cls, settings: Settings | None = None) -> AnalysisRepository:
+    def from_settings(cls, settings: Settings | None = None) -> FirestoreAnalysisStore:
         return cls(create_firestore_client(settings))
 
     async def persist_analysis(

@@ -9,9 +9,9 @@ import pytest
 
 from app.domain.findings import Finding, RuleEngineResult, Severity
 from app.domain.pr_context import NormalizedPrContext
-from app.repositories.analysis_repository import AnalysisRepository
 from app.services.analysis_persistence import persist_analysis_run
 from app.services.scoring_service import score_pr
+from app.vendor.firestore import FirestoreAnalysisStore
 
 pytestmark = pytest.mark.integration
 
@@ -21,7 +21,7 @@ async def test_persist_get_list_roundtrip_on_emulator() -> None:
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):
         pytest.skip("Set FIRESTORE_EMULATOR_HOST to run Firestore integration tests")
 
-    repo = AnalysisRepository.from_settings()
+    store = FirestoreAnalysisStore.from_settings()
     ctx = NormalizedPrContext(
         repository_full_name="org/integration",
         pr_number=7,
@@ -56,7 +56,7 @@ async def test_persist_get_list_roundtrip_on_emulator() -> None:
     ]
     aid = str(uuid.uuid4())
     await persist_analysis_run(
-        repo,
+        store,
         ctx=ctx,
         findings=findings,
         score=score,
@@ -67,12 +67,12 @@ async def test_persist_get_list_roundtrip_on_emulator() -> None:
         analysis_id=aid,
     )
 
-    loaded = await repo.get_analysis_run(aid)
+    loaded = await store.get_analysis_run(aid)
     assert loaded is not None
     assert loaded.get("analysis_id") == aid
     assert loaded.get("repo") == "org/integration"
     assert loaded.get("pr_number") == 7
 
-    rows = await repo.list_findings(aid)
+    rows = await store.list_findings(aid)
     assert len(rows) == 2
     assert [r.get("file_path") for r in rows] == ["a.py", "z.py"]

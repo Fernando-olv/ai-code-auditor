@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from google.cloud import firestore
 
-from app.repositories.analysis_repository import AnalysisRepository
+from app.vendor.firestore import FirestoreAnalysisStore
 
 
 @pytest.mark.asyncio
@@ -22,8 +22,8 @@ async def test_persist_analysis_batch_writes_parent_and_finding() -> None:
     parent_doc.collection.return_value = findings_col
     findings_col.document.return_value = finding_doc
 
-    repo = AnalysisRepository(client)
-    await repo.persist_analysis(
+    store = FirestoreAnalysisStore(client)
+    await store.persist_analysis(
         "run-1",
         {"analysis_id": "run-1"},
         [{"finding_id": "fid-1", "rule_id": "r1", "file_path": "a.py"}],
@@ -48,8 +48,8 @@ async def test_get_analysis_run_returns_none_when_missing() -> None:
     runs_col.document.return_value = parent_doc
     parent_doc.get.return_value = snap
 
-    repo = AnalysisRepository(client)
-    out = await repo.get_analysis_run("missing")
+    store = FirestoreAnalysisStore(client)
+    out = await store.get_analysis_run("missing")
     assert out is None
 
 
@@ -70,6 +70,6 @@ async def test_list_findings_sorted_by_path_and_finding_id() -> None:
     parent_doc.collection.return_value = findings_col
     findings_col.stream.return_value = [d1, d2]
 
-    repo = AnalysisRepository(client)
-    rows = await repo.list_findings("run-1")
+    store = FirestoreAnalysisStore(client)
+    rows = await store.list_findings("run-1")
     assert [r["file_path"] for r in rows] == ["a.py", "z.py"]

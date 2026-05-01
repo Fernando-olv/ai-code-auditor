@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from app.services.llm_client import GeminiGenerativeClient
+from app.vendor.gemini import GeminiGenerativeClient
 
 
 def _gemini_response_json_text(text: str) -> dict:

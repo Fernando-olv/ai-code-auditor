@@ -13,7 +13,7 @@ from app.domain.analysis_run import (
 from app.domain.findings import Finding, RuleEngineResult
 from app.domain.pr_context import NormalizedPrContext
 from app.domain.scoring import PrScoreResult
-from app.repositories.analysis_repository import AnalysisRepository
+from app.ports.analysis_store import AnalysisStore
 from app.services.llm_reviewer import LlmReviewResult
 
 
@@ -37,7 +37,7 @@ def _ensure_finding_ids(
 
 
 async def persist_analysis_run(
-    repo: AnalysisRepository,
+    store: AnalysisStore,
     *,
     ctx: NormalizedPrContext,
     findings: Sequence[Finding],
@@ -71,5 +71,5 @@ async def persist_analysis_run(
         error_message=error_message,
     )
     finding_rows = [finding_to_firestore_dict(f) for f in prepared]
-    await repo.persist_analysis(aid, run_doc, finding_rows)
+    await store.persist_analysis(aid, run_doc, finding_rows)
     return aid
