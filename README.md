@@ -1,143 +1,299 @@
 # AI Dev Auditor
 
-Demo-ready MVP: GitHub PR webhooks, deterministic rules + LLM review, scoring, Firestore persistence, and **PR issue comments** with analysis summaries.
+An automated **AI-powered code reviewer** that watches your GitHub Pull Requests and posts a single, idempotent review comment combining deterministic rules, an LLM second opinion, and a per-PR risk score. Built as a small FastAPI service deployable to Cloud Run with Firestore for persistence.
 
-See [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) for milestones and [docs/PROGRESS.md](docs/PROGRESS.md) for what is implemented.
+> **Status:** MVP. See [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) for milestones and [docs/PROGRESS.md](docs/PROGRESS.md) for what is shipped.
 
-## Setup
+---
 
-Requires Python 3.11+.
+## What it does
+
+When a Pull Request is opened or updated, the service:
+
+- **Verifies** the GitHub webhook signature (`X-Hub-Signature-256`) and acknowledges fast (HTTP 202).
+- **Fetches** PR metadata and the unified diff via the GitHub REST API.
+- **Runs deterministic rules** over the diff (size limits, secret patterns, missing-test heuristics, denylisted paths, ...).
+- **Asks an LLM** (Google Gemini or any OpenAI-compatible chat API) for a second pass focused on maintainability, correctness, and risks. Output is structured JSON, mapped to the same `Finding` shape as the rule engine.
+- **Scores the PR** across maintainability / quality / risk and merges all findings.
+- **Persists** the run and findings to Firestore (when configured) for later querying and dashboards.
+- **Posts a single markdown comment** on the PR. A hidden head-SHA marker makes the comment idempotent: the next push updates the conversation rather than spamming it.
+
+---
+
+## What you get on a Pull Request
+
+Each analyzed PR receives a comment with a score, ranked findings, and a short LLM summary with strengths, risks, and suggested next actions.
+
+<p align="center">
+  <img src="docs/screenshots/pr-analysis-comment.png" alt="AI Dev Auditor analysis comment on a Pull Request" width="780" />
+</p>
+
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    GH[GitHub PR event]
+    WH["/webhooks/github"]
+    RUNNER[pr_analysis_runner]
+    REVIEWER[llm_reviewer]
+    RULES[rule_engine]
+    SCORE[scoring_service]
+    PERSIST[analysis_persistence]
+    FEEDBACK[feedback_service]
+    COMMENT[GitHub PR comment]
+
+    subgraph ports [app/ports]
+      PLLM[LlmClient]
+      PSTORE[AnalysisStore]
+    end
+
+    subgraph vendor [app/vendor]
+      VOPENAI[openai adapter]
+      VGEMINI[gemini adapter]
+      VFS[firestore adapter]
+    end
+
+    GH --> WH --> RUNNER
+    RUNNER --> RULES
+    RUNNER --> REVIEWER --> PLLM
+    RUNNER --> SCORE
+    RUNNER --> PERSIST --> PSTORE
+    RUNNER --> FEEDBACK --> COMMENT
+    VOPENAI -.implements.-> PLLM
+    VGEMINI -.implements.-> PLLM
+    VFS -.implements.-> PSTORE
+```
+
+The service depends only on the **ports** (`app/ports/`). Concrete vendors live in `app/vendor/` and are picked at runtime by tiny factories in `app/services/`. Adding a new LLM provider or a different storage backend is a single new module under `app/vendor/<name>/` plus a branch in the factory.
+
+---
+
+## Quick start (local)
+
+Requires **Python 3.11+**.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-```
-
-Optional: copy [`.env.example`](.env.example) to `.env` and adjust variables.
-
-Environment variables:
-
-- `GITHUB_WEBHOOK_SECRET` — validates incoming GitHub webhooks (`X-Hub-Signature-256`).
-- `GITHUB_TOKEN` — bearer token for GitHub REST API (PR metadata, diffs, **posting review comments**). Not used for webhook signatures. Use a fine-grained token or classic PAT with **`contents: read`**, **`pull_requests: read`**, and **`issues: write`** (PR thread comments use the issues comments API).
-- `GITHUB_API_BASE_URL` — optional; defaults to `https://api.github.com` (useful for GitHub Enterprise).
-- `LLM_PROVIDER` — `openai` (default) or `gemini`. Selects which LLM backend [`run_llm_reviewer_from_settings`](app/services/llm_reviewer.py) uses.
-- `OPENAI_API_KEY` — when `LLM_PROVIDER=openai`, API key for an OpenAI-compatible chat API. If unset for that provider, LLM review is skipped.
-- `OPENAI_BASE_URL` — optional; defaults to `https://api.openai.com/v1` (OpenAI provider only).
-- `LLM_MODEL` — optional; defaults to `gpt-4o-mini` (OpenAI provider only).
-- `GEMINI_API_KEY` — when `LLM_PROVIDER=gemini`, API key from [Google AI Studio](https://aistudio.google.com/) (Generative Language API). Not the same as Vertex AI service-account auth.
-- `GEMINI_MODEL` — optional; defaults to `gemini-2.0-flash` in settings. You may pass `models/gemini-2.0-flash`; the client strips the `models/` prefix for the REST path.
-- `AI_REPO_ROOT` or `AI_PROMPTS_DIR` — optional path to the repository root that contains the [`ai/`](ai/) prompts folder when not running from a normal checkout.
-- `GOOGLE_CLOUD_PROJECT` — GCP project id for Firestore (`google-cloud-firestore`). Recommended on Cloud Run so the client target is explicit. When `FIRESTORE_EMULATOR_HOST` is set locally and this is empty, the app uses a demo project id for the emulator.
-- `FIRESTORE_DATABASE_ID` — optional; omit or `(default)` for the default Firestore database. Otherwise set your named database id.
-- `FIRESTORE_EMULATOR_HOST` — **local only** (e.g. `127.0.0.1:8080`). The Firestore client library routes to the emulator; unset in production.
-
-## Run
-
-```powershell
+copy .env.example .env   # then edit values
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Interactive API docs: `http://127.0.0.1:8000/docs`
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Liveness probe |
+| `GET /docs` | Swagger UI (interactive API explorer) |
+| `POST /webhooks/github` | Signed GitHub webhook receiver |
 
-Health check: `GET http://127.0.0.1:8000/health`
+To exercise the webhook locally without a public IP, expose `127.0.0.1:8000` with a tunnel (e.g. `cloudflared`, `ngrok`) and point the GitHub webhook at the tunnel URL with the same secret you set in `GITHUB_WEBHOOK_SECRET`.
 
-## Pull request webhook behavior (Milestone 7)
+---
 
-On signed `pull_request` webhooks, the API returns **`202`** with `{"accepted": true, "queued": <bool>}` immediately.
+## Configuration
 
-- **`queued: true`** for actions `opened`, `synchronize`, and `reopened`: a **background task** runs full analysis (rules + optional LLM + score), optionally **persists** to Firestore when `GOOGLE_CLOUD_PROJECT` or `FIRESTORE_EMULATOR_HOST` is configured, then posts a single **markdown issue comment** on the PR (via `POST .../issues/{pr_number}/comments`).
-- **`queued: false`** for other actions (for example `labeled`, `edited`): no analysis run.
+All configuration is environment-driven (see [`.env.example`](.env.example)). On Cloud Run, secrets are mounted from Google Secret Manager.
 
-Duplicate comments for the same **API head SHA** are skipped when an existing comment contains the hidden marker `<!-- ai-dev-auditor:head_sha=... -->`.
+### Core
 
-If `GITHUB_TOKEN` is unset, analysis and posting are skipped (logged); configure the token for real runs.
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `GITHUB_WEBHOOK_SECRET` | yes | — | Validates `X-Hub-Signature-256` on incoming webhooks. |
+| `GITHUB_TOKEN` | yes | — | Bearer token for the GitHub REST API. **Use a classic PAT with `repo` scope** for cross-owner repositories; fine-grained PATs cannot write to repos owned by other users/orgs. |
+| `GITHUB_API_BASE_URL` | no | `https://api.github.com` | Override for GitHub Enterprise. |
+| `LOG_LEVEL` | no | `INFO` | `DEBUG`/`INFO`/`WARNING`/... |
+| `APP_ENV` | no | `development` | Free-form label, surfaced in logs. |
 
-### Google AI Studio (Gemini) for LLM review
+### LLM provider
 
-1. In AI Studio, create an API key for the Generative Language API.
-2. Set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY=...` in the environment (see [`.env.example`](.env.example)).
-3. Optionally set `GEMINI_MODEL` (default is tuned for the free tier / fast responses).
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `LLM_PROVIDER` | no | `openai` | `openai` or `gemini`. Selects which adapter `app/services/llm_factory.py` builds. |
+| `OPENAI_API_KEY` | when `LLM_PROVIDER=openai` | — | Empty value skips LLM review and logs a `skipped` outcome. |
+| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Compatible servers (Azure, Together, Groq, vLLM, ...). |
+| `LLM_MODEL` | no | `gpt-4o-mini` | OpenAI provider only. |
+| `GEMINI_API_KEY` | when `LLM_PROVIDER=gemini` | — | API key from [Google AI Studio](https://aistudio.google.com/) (Generative Language API). Different from Vertex AI. |
+| `GEMINI_MODEL` | no | `gemini-2.0-flash` | For free-tier MVPs prefer `gemini-2.5-flash-lite` (more generous quota). The client strips the `models/` prefix automatically. |
+| `LLM_MAX_OUTPUT_TOKENS` | no | `2048` | Cap for both providers. |
+| `LLM_JSON_RESPONSE_FORMAT` | no | `true` | Sets `response_format=json_object` (OpenAI) or `responseMimeType=application/json` (Gemini). |
 
-The reviewer still expects **JSON** matching the existing schema; Gemini uses `responseMimeType: application/json` when `LLM_JSON_RESPONSE_FORMAT` is true (default). Free-tier quotas and rate limits apply per Google’s policy.
+### Storage
 
-## Test
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `GOOGLE_CLOUD_PROJECT` | for production | — | Enables Firestore persistence. Empty disables persistence (analysis still runs and posts the comment). |
+| `FIRESTORE_DATABASE_ID` | no | `(default)` | Override for named databases. |
+| `FIRESTORE_EMULATOR_HOST` | local only | — | e.g. `127.0.0.1:8080`. **Do not set on Cloud Run.** |
+
+---
+
+## GitHub setup
+
+1. **Create a Personal Access Token** (classic, scopes: `repo`).
+   Fine-grained tokens are not recommended because they can only access repositories owned by you or by orgs that opt in; they will return `403` on any third-party repo.
+2. **Create a webhook** on the target repository:
+   - Payload URL: `https://<your-cloud-run>.run.app/webhooks/github`
+   - Content type: `application/json`
+   - Secret: same value as `GITHUB_WEBHOOK_SECRET`
+   - Events: select **Pull requests** (or _send me everything_; the service filters).
+3. **Permissions required on the token / for the comment author**: `contents: read`, `pull_requests: read`, `issues: write` (PR thread comments use the issues comments API).
+
+Webhook behavior:
+
+- The service responds **`202 Accepted`** with `{"accepted": true, "queued": <bool>}`.
+- `queued: true` for actions `opened`, `synchronize`, `reopened` (background analysis runs).
+- `queued: false` for other actions (`labeled`, `edited`, `assigned`, ...).
+- Duplicate comments for the same head SHA are skipped via the hidden marker `<!-- ai-dev-auditor:head_sha=... -->`.
+- If `GITHUB_TOKEN` is empty, analysis is skipped with a structured log line.
+
+---
+
+## Deploy to Google Cloud Run
+
+The repo ships with a `Dockerfile` ready for Cloud Run.
+
+### 1. Enable APIs and create the Firestore database
 
 ```powershell
-pytest
+gcloud services enable run.googleapis.com firestore.googleapis.com secretmanager.googleapis.com --project=YOUR_PROJECT_ID
+gcloud firestore databases create --location=us-central1 --project=YOUR_PROJECT_ID
 ```
 
-Integration tests (Firestore emulator): install the [Firestore emulator](https://cloud.google.com/firestore/docs/emulator), start it, export `FIRESTORE_EMULATOR_HOST` (and optionally `GOOGLE_CLOUD_PROJECT`), then run `pytest -m integration`.
-
-## Lint / format
+Grant the Cloud Run runtime service account access to read/write Firestore. The default Compute service account works for an MVP; for production prefer a dedicated SA:
 
 ```powershell
-ruff check .
-ruff format .
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID `
+  --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com" `
+  --role="roles/datastore.user"
 ```
 
-Check formatting without writing files: `ruff format --check .`
-
-## Validate (like CI)
+### 2. Store secrets in Secret Manager
 
 ```powershell
-ruff check .
-ruff format --check .
-pytest
+gcloud secrets create github-webhook-secret --replication-policy="automatic" --project=YOUR_PROJECT_ID
+gcloud secrets create github-token         --replication-policy="automatic" --project=YOUR_PROJECT_ID
+gcloud secrets create gemini-api-key       --replication-policy="automatic" --project=YOUR_PROJECT_ID
+
+# Add a value (PowerShell-safe: avoids trailing newlines)
+$tmp = [IO.Path]::GetTempFileName()
+[IO.File]::WriteAllBytes($tmp, [Text.UTF8Encoding]::new($false).GetBytes("THE-RAW-SECRET-VALUE"))
+gcloud secrets versions add github-webhook-secret --data-file="$tmp" --project=YOUR_PROJECT_ID
+Remove-Item $tmp -Force
 ```
 
-## Deploy to GCP Cloud Run (Docker)
-
-This repo includes a `Dockerfile` suitable for Cloud Run.
-
-### Build and run locally
+Grant the runtime SA permission to read those secrets:
 
 ```powershell
-docker build -t ai-code-auditor .
-docker run -p 8080:8080 -e PORT=8080 -e GITHUB_WEBHOOK_SECRET="dev-secret" ai-code-auditor
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID `
+  --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com" `
+  --role="roles/secretmanager.secretAccessor"
 ```
 
-Then verify:
-- `GET http://127.0.0.1:8080/health`
-- `POST http://127.0.0.1:8080/webhooks/github` (must be signed; see webhook docs/milestones)
-
-### Firestore (Native mode)
-
-1. In the same GCP region you use for Cloud Run (e.g. `us-central1`), create or use a **Firestore Native** database (default `(default)` is fine).
-2. Enable the API: `gcloud services enable firestore.googleapis.com --project=YOUR_PROJECT_ID`.
-3. Grant the **Cloud Run runtime service account** a role that can read/write application data, e.g. **`roles/datastore.user`** (validate against your org’s IAM constraints). Prefer the metadata server (ADC) — do not mount JSON keys on Cloud Run for Firestore.
-4. Set **`GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID`** on the Cloud Run service. Do **not** set `FIRESTORE_EMULATOR_HOST` in Cloud Run.
-
-After deploy, operators can verify connectivity with Application Default Credentials:
+### 3. Deploy
 
 ```powershell
+gcloud run deploy ai-code-auditor `
+  --source . `
+  --region us-central1 `
+  --project YOUR_PROJECT_ID `
+  --allow-unauthenticated `
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,LLM_PROVIDER=gemini,GEMINI_MODEL=gemini-2.5-flash-lite" `
+  --set-secrets "GITHUB_WEBHOOK_SECRET=github-webhook-secret:latest,GITHUB_TOKEN=github-token:latest,GEMINI_API_KEY=gemini-api-key:latest"
+```
+
+Cloud Run will build the container, route requests to `$PORT` automatically, and return a public URL of the form `https://ai-code-auditor-<hash>-<region>.run.app`. Use that URL plus `/webhooks/github` as the GitHub webhook payload URL.
+
+### 4. Verify after deploy
+
+```powershell
+# 1. Liveness
+Invoke-RestMethod https://<your-service>.run.app/health
+
+# 2. Firestore connectivity (requires ADC)
 gcloud auth application-default login
 $env:GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"
 python scripts/verify_gcp_firestore.py
+
+# 3. End-to-end: push a commit to a PR, then tail logs
+gcloud run services logs read ai-code-auditor --region=us-central1 --project=YOUR_PROJECT_ID --limit=80 |
+  Select-String -SimpleMatch -Pattern "pr_analysis_llm_outcome","pr_analysis_github_comment_posted"
 ```
 
-The script writes and deletes a small canary document under the `ops_smoke` collection.
+A successful run logs `pr_analysis_llm_outcome { llm_status: ok, ... }` followed by `pr_analysis_github_comment_posted`.
 
-### Deploy to Cloud Run with Secret Manager
+---
 
-Create the secret and add a value:
+## Project structure
+
+```
+app/
+  api/              FastAPI routers (webhook, health)
+  core/             Settings, logging, configuration loaders
+  domain/           Pure domain types (Finding, NormalizedPrContext, scoring)
+  ports/            Interfaces consumed by services
+    llm_client.py       LlmClient Protocol
+    analysis_store.py   AnalysisStore Protocol
+  vendor/           Concrete adapters (one folder per external service)
+    openai/         OpenAI-compatible chat completions adapter
+    gemini/         Google AI Studio Gemini generateContent adapter
+    firestore/      FirestoreAnalysisStore + client factory
+  rules/            Deterministic rule pack (size, secrets, coverage heuristics, ...)
+  schemas/          Pydantic models for LLM I/O parsing
+  services/         Orchestration (pr_analysis_runner, scoring, factories)
+docs/               Plans, progress notes, screenshots
+scripts/            Operational helpers (verify_gcp_firestore.py, ...)
+tests/              Unit + integration tests
+ai/                 Editable system/memory prompts for the reviewer
+```
+
+To add a **new LLM provider**: create `app/vendor/<provider>/llm_client.py` implementing the `LlmClient` Protocol, register it in `app/services/llm_factory.py`. Existing services and tests stay untouched.
+
+To add a **new storage backend** (e.g. Postgres, DynamoDB): create `app/vendor/<backend>/analysis_store.py` implementing `AnalysisStore`, then branch in `app/services/store_factory.py`.
+
+---
+
+## Testing & quality
 
 ```powershell
-gcloud secrets create github-webhook-secret --replication-policy="automatic"
-echo "your-webhook-secret" | gcloud secrets versions add github-webhook-secret --data-file=-
+pytest -q                  # 88+ unit tests
+ruff check .               # lint
+ruff format --check .      # format check (no writes)
 ```
 
-Deploy and map the secret to `GITHUB_WEBHOOK_SECRET`:
+Integration tests against the Firestore emulator are gated by a marker:
 
 ```powershell
-gcloud run deploy ai-code-auditor ^
-  --source . ^
-  --region us-central1 ^
-  --allow-unauthenticated ^
-  --set-env-vars GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID ^
-  --set-secrets GITHUB_WEBHOOK_SECRET=github-webhook-secret:latest
+gcloud beta emulators firestore start --host-port=127.0.0.1:8080
+$env:FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
+pytest -m integration
 ```
 
-Replace `YOUR_PROJECT_ID` with the project that hosts Firestore (see **Firestore** above). Add more `--set-secrets` / `--set-env-vars` entries as needed (for example `GITHUB_TOKEN`, `OPENAI_API_KEY`).
+CI-equivalent one-liner:
 
-Cloud Run will route requests to the container on `$PORT` automatically.
+```powershell
+ruff check . ; ruff format --check . ; pytest -q
+```
+
+---
+
+## Roadmap
+
+Implemented milestones are tracked in [docs/PROGRESS.md](docs/PROGRESS.md). Highlights of what is **already shipped**:
+
+- Signed webhook intake with background-task analysis dispatch.
+- Deterministic rule engine with a configurable rule pack.
+- LLM reviewer with provider-agnostic adapters (OpenAI-compatible + Google Gemini).
+- Atomic Firestore persistence (`analysis_runs` + nested `findings`) with batched writes.
+- Idempotent PR comment via head-SHA marker, with markdown rendering of strengths / risks / next actions.
+- Cloud Run deploy path with Secret Manager wiring.
+
+Possible next milestones: per-language plugin packs (Go, JS), incremental review on `synchronize` events, dashboard UI over the Firestore data.
+
+---
+
+## License
+
+This project is part of an MVP exploration; license to be determined. Open an issue if you would like to use it commercially.
