@@ -244,7 +244,7 @@ app/
   schemas/          Pydantic models for LLM I/O parsing
   services/         Orchestration (pr_analysis_runner, scoring, factories)
 docs/               Plans, progress notes, screenshots
-scripts/            Operational helpers (verify_gcp_firestore.py, ...)
+scripts/            Operational helpers (replay_webhook.py, verify_gcp_firestore.py, ...)
 tests/              Unit + integration tests
 ai/                 Editable system/memory prompts for the reviewer
 ```
@@ -279,6 +279,19 @@ ruff check . ; ruff format --check . ; pytest -q
 
 ---
 
+## Documentation
+
+| Doc | What it covers |
+| --- | --- |
+| [docs/DEMO.md](docs/DEMO.md) | 5-minute local walkthrough using the bundled signed-webhook replay script — no GitHub tunnel required. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Request lifecycle, ports/vendors boundary, idempotency, deliberate failure modes. |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | Honest scope: what the auditor does **not** do today and why. |
+| [docs/agents.md](docs/agents.md) | Reviewer-agent contract: inputs, outputs, failure conditions. |
+| [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) / [docs/PROGRESS.md](docs/PROGRESS.md) | Milestone definitions and the running implementation log. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to run tests, integration suite, and the demo locally. |
+
+---
+
 ## Roadmap
 
 Implemented milestones are tracked in [docs/PROGRESS.md](docs/PROGRESS.md). Highlights of what is **already shipped**:
@@ -296,4 +309,4 @@ Possible next milestones: per-language plugin packs (Go, JS), incremental review
 
 ## License
 
-This project is part of an MVP exploration; license to be determined. Open an issue if you would like to use it commercially.
+Released under the MIT License. See [LICENSE](LICENSE).

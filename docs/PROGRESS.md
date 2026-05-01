@@ -95,6 +95,19 @@ Running record of merged vertical slices. Milestones follow [EXECUTION_PLAN.md](
 
 **Status:** Milestone 7 definition of done met (markdown review on PR via issue comment; async webhook path; Firestore when configured; unit tests).
 
+## Milestone 8 — Demo hardening
+
+| Date       | Commit / area | What changed | How to validate |
+|------------|---------------|--------------|-----------------|
+| 2026-04-30 | `feat(scripts): add signed webhook replay + demo scripts` | [`scripts/replay_webhook.py`](scripts/replay_webhook.py) (cross-platform), [`scripts/demo_local_analysis.ps1`](scripts/demo_local_analysis.ps1), [`scripts/demo_local_analysis.sh`](scripts/demo_local_analysis.sh); reuses [`tests/fixtures/github_webhooks/`](tests/fixtures/github_webhooks/) | Run `uvicorn main:app`, then `python scripts/replay_webhook.py --event ping --fixture tests/fixtures/github_webhooks/ping.json` → `200 ok`; `--event pull_request --fixture tests/fixtures/github_webhooks/pull_request_opened.json` → `202 accepted, queued=true` |
+| 2026-04-30 | `docs: architecture, demo, and limitations notes` | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) (request lifecycle, ports/vendors, idempotency, failure modes), [`docs/DEMO.md`](DEMO.md) (5-minute walkthrough), [`docs/LIMITATIONS.md`](LIMITATIONS.md); README "Documentation" index links all three | Read each doc; click links from README |
+| 2026-04-30 | `chore(ci): add GitHub Actions workflow` | [`.github/workflows/ci.yml`](.github/workflows/ci.yml): `ruff check`, `ruff format --check`, `pytest -q -m "not integration"` on Python 3.11 with pip cache | Push branch, observe Actions tab; locally: `ruff check . ; ruff format --check . ; pytest -q -m "not integration"` |
+| 2026-04-30 | `docs: contributing guide and license` | [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`LICENSE`](../LICENSE) (MIT); README footer updated from "license to be determined" | Open `CONTRIBUTING.md` and `LICENSE`; README "License" section points to `LICENSE` |
+
+**Status:** Milestone 8 definition of done met (end-to-end local demo runs without a public tunnel; CI workflow green on the standard checks; architecture, demo, and limitations docs linked from README; license declared).
+
 ## Next
 
-- Milestone 8 — Demo hardening (fixtures, demo script, architecture notes, limitations).
+- Per-language rule packs (Go, JS) under [`app/rules/`](app/rules/).
+- Incremental review on `synchronize` events (diff of diff).
+- Dashboard UI over Firestore `analysis_runs` for trend visibility.
